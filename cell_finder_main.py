@@ -1,6 +1,13 @@
+import os.path, h5py, cv2, csv, re, string
+import numpy as np
+import matplotlib.pyplot as plt
+from importlib import reload
+import shutil
+from parameters import *
+
 ## TODO
 # 3/4/20
-# archive previous 10x ref images -- IMPLEMENTED, TEST!
+# archive previous 10x ref images -- DONE
 # 2/20/20
 # batch close previews? or toggle them on/off more easily -- DONE
 # 2/13/20
@@ -13,42 +20,6 @@
 ## WOULD BE NICE
 # do not image adjacent cells
 
-import os.path, h5py, cv2, csv, re, string
-import numpy as np
-import matplotlib.pyplot as plt
-from importlib import reload
-import shutil
-# %matplotlib inline
-
-""" USER-SET PARAMETERS"""
-# parameters
-DEBUGGING = 0 # set to 1 if running debug version (ilya laptop)
-showImages = 0 # 1 to show images
-moveToArchive = 1 # after processing, move 10X tif files and ilastik h5 files to an archive directory
-minArea = 80 # minimum area to be considered a cell (in pixels)
-maxArea = 250 # max area to be considered a cell (in pixels)
-distToEdgeThresh = 50 # cell must be at least distToEdgeThresh (in pixels) away from FOV edge
-maxNumCells = 9 # max number of cells to output
-pxToStepsX, pxToStepsY = (1.76, 1.76) # steps x movements = pixels * pxToSteps
-imgSize = 512 # edge size of 10x image
-centerAdjustmentX, centerAdjustmentY = (52, -34) # correct for offset in steps between 40x and 10x image centers
-keyName = 'exported_data'
-
-if DEBUGGING:
-    # ILYA LOCAL PATHS
-    defaultSTGFileDir = r'sample.STG' # path to default STG file
-    outputSTGFileDir = r'sampleOut.STG' # path to STG file that will be saved
-    h5FullDir = r'Z:\ilya\projects\cell_finding\10xRefImages_P5_NoCrop' # path to ref images folder (AutoFocusRef1 images)
-    archiveDir = r'Z:\ilya\projects\cell_finding\img_archive'
-else:
-    # RIG 1 PATHS
-    defaultSTGFileDir = r'D:\\Neuronal_Culture_DataMM\\refs\\sampleIn.STG' # path to default STG file
-    outputSTGFileDir = r'D:\\Neuronal_Culture_DataMM\\refs\\sampleOut.STG' # path to STG file that will be saved
-    h5FullDir = r'D:\Neuronal_Culture_DataMM\\refs\\temp' # path to ref images folder (AutoFocusRef1 images)
-    archiveDir = r'D:\Neuronal_Culture_DataMM\\refs\\temp\\archive'
-
-
-""" /USER-SET PARAMETERS"""
 
 def runIlastik(tifFile):
     ilastik_bat_str = r'"C:\\Program Files\\ilastik-1.3.3post1\\run-ilastik.bat"' if DEBUGGING else r'"C:\\Program Files\\ilastik-1.3.3post2\\run-ilastik.bat"'
@@ -165,28 +136,41 @@ modifies well titile like "96Well02-A02_500dot456" to "96Well02-A02c_500dot456" 
 def modifyWellTitle(title, letter):
     wellString = re.split('_', wellTitle)
     return wellString[0] + letter + '_' + wellString[1]
-    
+
+'''
+extracts well index from h5 or tif filename e.g.
+AutoFocusRef1   _96Well02-A02_421dot5325_a_8626.88_um_XY-Position_-17534_-6993_Analog-GFP-0.15_segmentation.h5 >>> 96Well02-A02
+AutoFocusRef1   _96Well03-A03_421dot5333_a_8586.96_um_XY-Position_-26534_-6993_Analog-GFP-0.15.tif             >>> A03_421dot5333
+'''
+def getWellIdxFromFilename(fName):
+	return re.split('_', fName)[1]
+
+
 # START MAIN SCRIPT
 
-allTifs = [os.path.join(h5FullDir,f) for f in os.listdir(h5FullDir) if f.endswith('.tif')]
+allTifs = [f for f in os.listdir(h5FullDir) if f.endswith('.tif')]
 
-if DEBUGGING:
-    # FOR DEBUGGING ONLY: fewer tifs
-    allTifs = allTifs[:10] 
-    #####
 
 print(str(len(allTifs)) + ' TIF files')
 
-if not DEBUGGING:
-    # FOR DEBUGGING ONLY: do not run ilastik
-    for tif in allTifs: runIlastik(tif)
+# list of existing well index strings in the dir (e.g. `96Well03-A03`)
+existingH5WellIdx = [getWellIdxFromFilename(f) for f in os.listdir(h5FullDir) if f.endswith('.h5')]
+# print(existingH5WellIdx)
+for tif in allTifs: 
+	tifWellIdx = getWellIdxFromFilename(tif)
+	# print('tifWellIdx: ' + tifWellIdx)
+	if any(tifWellIdx in s for s in existingH5WellIdx):
+		print('H5 file already exists for ' + tifWellIdx '. Skipping...')
+	else:
+		print('Running ilastik')
+		runIlastik(os.path.join(h5FullDir,f))
 
 imgCenter = np.round(imgSize / 2)
 letters = string.ascii_lowercase[:27]
 # load and modify STG file
 # assume STG file contains XYZ positions of center FOV in each well (focused in 40x)
 # generate new STG file with scaled positions of found cells
-nHeaderLines = 3
+
 
 allH5files = [os.path.join(h5FullDir,f) for f in os.listdir(h5FullDir) if f.endswith('.h5')]
 print(str(len(allH5files)) + ' h5 files')
@@ -244,4 +228,4 @@ if moveToArchive:
         shutil.move(f, os.path.join(archiveDir, os.path.split(f)[1]))
     print('done\n')
 
-print('>>>>>>>>>>>>>>>>>>>>>>SUCCESS!!!!!!!!!!!!<<<<<<<<<<<<<<<<<<<<<<<<<<')
+print('>>>>>>>>>>>>>>>>>>>>>>SUCCESS<<<<<<<<<<<<<<<<<<<<<<<<<<')
