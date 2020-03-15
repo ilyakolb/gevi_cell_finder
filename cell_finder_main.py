@@ -22,9 +22,8 @@ from parameters import *
 
 
 def runIlastik(tifFile):
-    ilastik_bat_str = r'"C:\\Program Files\\ilastik-1.3.3post1\\run-ilastik.bat"' if DEBUGGING else r'"C:\\Program Files\\ilastik-1.3.3post2\\run-ilastik.bat"'
-    
-    ilastik_params = r'--headless --project=voltron_cell_finding.ilp --export_source="Simple Segmentation"'
+	# from parameters import ilastik_bat_str, ilastik_project_name
+    ilastik_params = r'--headless --project=' + ilastik_project_name + ' --export_source="Simple Segmentation"'
     parentFolder = os.path.dirname(tifFile)
     ilastik_output_params = r'--output_filename_format="' + os.path.join(parentFolder, r'{nickname}_segmentation.h5"')
 
@@ -142,7 +141,7 @@ extracts well index from h5 or tif filename e.g.
 AutoFocusRef1   _96Well02-A02_421dot5325_a_8626.88_um_XY-Position_-17534_-6993_Analog-GFP-0.15_segmentation.h5 >>> 96Well02-A02
 AutoFocusRef1   _96Well03-A03_421dot5333_a_8586.96_um_XY-Position_-26534_-6993_Analog-GFP-0.15.tif             >>> A03_421dot5333
 '''
-def getWellIdxFromFilename(fName):
+def getWellIdxFromFilename(fName):	
 	return re.split('_', fName)[1]
 
 
@@ -160,10 +159,10 @@ for tif in allTifs:
 	tifWellIdx = getWellIdxFromFilename(tif)
 	# print('tifWellIdx: ' + tifWellIdx)
 	if any(tifWellIdx in s for s in existingH5WellIdx):
-		print('H5 file already exists for ' + tifWellIdx '. Skipping...')
+		print('H5 file already exists for ' + tifWellIdx + '. Skipping...')
 	else:
 		print('Running ilastik')
-		runIlastik(os.path.join(h5FullDir,f))
+		runIlastik(os.path.join(h5FullDir,tif))
 
 imgCenter = np.round(imgSize / 2)
 letters = string.ascii_lowercase[:27]
